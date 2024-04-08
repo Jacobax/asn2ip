@@ -1,0 +1,50 @@
+name: CloudFlare IP Update Workflow
+
+on:
+  workflow_dispatch: # 手动触发运行
+  schedule:
+    - cron: '50 6 3,18 * *'
+
+jobs:
+  update-cloudflare-ips:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl jq mmdb-bin
+      
+      - name: Setup GEOIP_DATA_DIR directory
+        run: echo "GEOIP_DATA_DIR=${GITHUB_WORKSPACE}/GeoIP" >> $GITHUB_ENV
+
+      - name: Download CFIPlus.sh Script
+        run: |
+          wget https://raw.githubusercontent.com/cmliu/CloudFlareIPlus/main/CFIPlus.sh
+          chmod +x CFIPlus.sh
+      
+      - name: Replace GEOIP download path
+        run: |
+          sed -i 's|/usr/share/GeoIP/GeoLite2-Country.mmdb|${GEOIP_DATA_DIR}/GeoLite2-Country.mmdb|g' CFIPlus.sh
+      
+      - name: Download GEOIP Database
+        run: |
+          mkdir -p $GEOIP_DATA_DIR
+          wget -O $GEOIP_DATA_DIR/GeoLite2-Country.mmdb "https://github.com/P3TERX/GeoLite.mmdb/raw/download/GeoLite2-Country.mmdb"
+      
+      - name: Run CFIPlus.sh Script
+        env:
+          LANG: zh_CN.UTF-8
+        run: |
+          ./CFIPlus.sh
+      
+      - name: Commit and Push Changes
+        run: |
+          git config user.email "2823442326@qq.com"
+          git config user.name "Jacobax"
+          git add .
+          git commit -m "Auto-update of CloudFlare IP files" -a || echo "No changes to commit"
+          git push
